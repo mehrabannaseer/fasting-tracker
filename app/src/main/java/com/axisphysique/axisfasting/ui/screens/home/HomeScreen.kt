@@ -50,6 +50,7 @@ fun HomeScreen(
     val animatedProgress by animateFloatAsState(targetValue = timerUiState.progress, label = "TimerProgress")
     
     var showDatePicker by remember { mutableStateOf(false) }
+    var selectedStageInfo by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     if (showDatePicker) {
         CustomTimePickerDialog(
@@ -58,6 +59,17 @@ fun HomeScreen(
                 timerViewModel.startTimerWithCustomTime(dateTime)
                 showDatePicker = false
             }
+        )
+    }
+
+    if (selectedStageInfo != null) {
+        AlertDialog(
+            onDismissRequest = { selectedStageInfo = null },
+            confirmButton = {
+                TextButton(onClick = { selectedStageInfo = null }) { Text("Got it") }
+            },
+            title = { Text(selectedStageInfo!!.first) },
+            text = { Text(selectedStageInfo!!.second) }
         )
     }
 
@@ -76,21 +88,21 @@ fun HomeScreen(
                     .padding(horizontal = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Image(
-                        painter = painterResource(id = if (isDarkMode) R.drawable.app_logo else R.drawable.app_logo_black),
-                        contentDescription = "Axis Fasting Logo",
-                        modifier = Modifier.height(44.dp),
-                        contentScale = ContentScale.Fit
-                    )
-                    Text(
-                        text = "Intermittent Fasting",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
-                        letterSpacing = 1.sp
-                    )
-                }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Image(
+                            painter = painterResource(id = if (isDarkMode) R.drawable.app_logo else R.drawable.app_logo_black),
+                            contentDescription = "Axis Fasting Logo",
+                            modifier = Modifier.height(50.dp),
+                            contentScale = ContentScale.Fit
+                        )
+                        Text(
+                            text = "Intermittent Fasting",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            letterSpacing = 1.sp
+                        )
+                    }
                 IconButton(
                     onClick = onNavigateToSettings,
                     modifier = Modifier.align(Alignment.CenterEnd)
@@ -114,12 +126,12 @@ fun HomeScreen(
             // Quick Actions Row
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    QuickActionCard("Fasting Tips", Icons.Default.Lightbulb, Color(0xFFFFC107), onNavigateToTips, Modifier.weight(1f))
-                    QuickActionCard("Weight Tracking", Icons.Default.MonitorWeight, Color(0xFF4CAF50), onNavigateToWeight, Modifier.weight(1f))
-                    QuickActionCard("Water Intake", Icons.Default.LocalDrink, Color(0xFF2196F3), onNavigateToWater, Modifier.weight(1f))
+                    QuickActionCard("Fasting Tips", Icons.Default.Lightbulb, Color(0xFFFFC107), onNavigateToTips, Modifier.weight(1f).fillMaxHeight())
+                    QuickActionCard("Weight Tracking", Icons.Default.MonitorWeight, Color(0xFF4CAF50), onNavigateToWeight, Modifier.weight(1f).fillMaxHeight())
+                    QuickActionCard("Water Intake", Icons.Default.LocalDrink, Color(0xFF2196F3), onNavigateToWater, Modifier.weight(1f).fillMaxHeight())
                 }
             }
 
@@ -199,8 +211,6 @@ fun HomeScreen(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier.size(300.dp)
                     ) {
-                        MetabolicStagesBackground(currentProgress = timerUiState.progress, isDarkMode = isDarkMode)
-                        
                         CircularProgressIndicator(
                             progress = 1f,
                             modifier = Modifier.size(240.dp),
@@ -214,6 +224,12 @@ fun HomeScreen(
                             color = if (timerUiState.isRunning) Color(timerUiState.selectedPlan.colorHex) else Color(0xFF03A9F4),
                             strokeWidth = 12.dp,
                             strokeCap = StrokeCap.Round
+                        )
+
+                        MetabolicStagesBackground(
+                            currentProgress = timerUiState.progress,
+                            isDarkMode = isDarkMode,
+                            onStageClick = { name, desc -> selectedStageInfo = name to desc }
                         )
                         
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -389,13 +405,25 @@ fun StatCard(
 }
 
 @Composable
-fun MetabolicStagesBackground(currentProgress: Float, isDarkMode: Boolean = false) {
+fun MetabolicStagesBackground(
+    currentProgress: Float,
+    isDarkMode: Boolean = false,
+    onStageClick: (String, String) -> Unit
+) {
     val stageIcons = listOf(
         Icons.Default.RestaurantMenu,      // Feeding
         Icons.Default.AccessTime,          // Post-absorptive
         Icons.Default.LocalFireDepartment, // Fat Burning
         Icons.Default.FlashOn,             // Ketosis
         Icons.Default.AutoFixHigh           // Autophagy
+    )
+    val stageNames = listOf("Feeding State", "Post-absorptive", "Fat Burning", "Ketosis", "Autophagy")
+    val stageDescriptions = listOf(
+        "Your body is processing nutrients from your last meal. Insulin levels are elevated.",
+        "Insulin levels drop and your body starts to use stored glycogen for energy.",
+        "Glycogen stores are low. Your body begins to break down stored fat for energy.",
+        "Your liver produces ketones to provide energy for your brain and body.",
+        "Your cells begin a 'cleanup' process, recycling old and damaged components."
     )
     val stageColors = listOf(
         Color(0xFF4CAF50), // Green
@@ -446,6 +474,7 @@ fun MetabolicStagesBackground(currentProgress: Float, isDarkMode: Boolean = fals
             val offsetY = (radius.value * sin(angleRad)).dp
 
             Surface(
+                onClick = { onStageClick(stageNames[index], stageDescriptions[index]) },
                 modifier = Modifier
                     .size(30.dp)
                     .align(Alignment.Center)
@@ -457,7 +486,7 @@ fun MetabolicStagesBackground(currentProgress: Float, isDarkMode: Boolean = fals
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
                         imageVector = stageIcons.getOrElse(index) { Icons.Default.Circle },
-                        contentDescription = null,
+                        contentDescription = stageNames[index],
                         tint = if (currentProgress >= progress) Color.White else (if (isDarkMode) Color.White.copy(alpha = 0.5f) else Color.Black.copy(alpha = 0.5f)),
                         modifier = Modifier.size(18.dp)
                     )
