@@ -21,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
@@ -378,7 +379,11 @@ fun MainScreen(
                             },
                             onCancelFasting = { viewModel.cancelFasting() },
                             onDeleteLog = { log -> viewModel.deleteFastingLog(log) },
-                            onTargetSelected = { hr -> viewModel.updateSelectedTargetHours(hr) }
+                            onTargetSelected = { hr -> viewModel.updateSelectedTargetHours(hr) },
+                            onCustomFastLog = { startTime, endTime, notes ->
+                                viewModel.startFasting(selectedTargetHours, startTime)
+                                viewModel.endFasting(notes = notes, customEndTime = endTime)
+                            }
                         )
                     }
 
@@ -442,7 +447,11 @@ fun MainScreen(
                             },
                             onCancelFasting = { viewModel.cancelFasting() },
                             onDeleteLog = { log -> viewModel.deleteFastingLog(log) },
-                            onTargetSelected = { hr -> viewModel.updateSelectedTargetHours(hr) }
+                            onTargetSelected = { hr -> viewModel.updateSelectedTargetHours(hr) },
+                            onCustomFastLog = { startTime, endTime, notes ->
+                                viewModel.startFasting(selectedTargetHours, startTime)
+                                viewModel.endFasting(notes = notes, customEndTime = endTime)
+                            }
                         )
                         1 -> WaterPane(
                             waterGoalMl = waterGoalMl,
@@ -853,7 +862,9 @@ fun MainScreen(
                             onCheckedChange = onThemeToggle,
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = MaterialTheme.colorScheme.primary,
-                                checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                                checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         )
                     }
@@ -882,7 +893,9 @@ fun MainScreen(
                             },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = MaterialTheme.colorScheme.primary,
-                                checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                                checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         )
                     }
@@ -986,6 +999,236 @@ fun MainScreen(
     }
 }
 
+// ==================== BMI CALCULATOR SECTION ====================
+
+@Composable
+fun BmiCalculatorSection() {
+    var isMetric by remember { mutableStateOf(true) }
+    var weightInput by remember { mutableStateOf("") }
+    var heightInput by remember { mutableStateOf("") }
+    var bmiResult by remember { mutableStateOf<Float?>(null) }
+    var bmiCategory by remember { mutableStateOf("") }
+    var categoryDescription by remember { mutableStateOf("") }
+
+    ElevatedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("bmi_calculator_card"),
+        shape = RoundedCornerShape(32.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp))
+                            .padding(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MonitorWeight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = "BMI Calculator",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                }
+
+                // Metric/Imperial Toggle
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Row(modifier = Modifier.padding(2.dp)) {
+                        listOf(true, false).forEach { metric ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (isMetric == metric) MaterialTheme.colorScheme.primary else Color.Transparent)
+                                    .clickable { isMetric = metric }
+                                    .padding(horizontal = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (metric) "Metric" else "Imperial",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (isMetric == metric) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (isMetric) "WEIGHT (KG)" else "WEIGHT (LBS)",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            letterSpacing = 1.sp
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = weightInput,
+                        onValueChange = { weightInput = it.filter { char -> char.isDigit() || char == '.' } },
+                        placeholder = { Text(if (isMetric) "e.g. 75" else "e.g. 165", color = Color.LightGray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                        )
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (isMetric) "HEIGHT (CM)" else "HEIGHT (IN)",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            letterSpacing = 1.sp
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = heightInput,
+                        onValueChange = { heightInput = it.filter { char -> char.isDigit() || char == '.' } },
+                        placeholder = { Text(if (isMetric) "e.g. 175" else "e.g. 69", color = Color.LightGray) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Button(
+                onClick = {
+                    val w = weightInput.toFloatOrNull()
+                    val h = heightInput.toFloatOrNull()
+                    if (w != null && h != null && h > 0) {
+                        val result = if (isMetric) {
+                            w / ((h / 100) * (h / 100))
+                        } else {
+                            703 * (w / (h * h))
+                        }
+                        bmiResult = result
+                        val (cat, desc) = when {
+                            result < 18.5f -> "Underweight" to "You have a body weight lower than what is considered healthy. Consider consulting a nutritionist."
+                            result < 25f -> "Normal" to "You have a healthy body weight for your height. Great job maintaining your vitality!"
+                            result < 30f -> "Overweight" to "You have a body weight higher than what is considered healthy. Intermittent fasting can help manage this."
+                            else -> "Obese" to "Your BMI indicates obesity. This may increase the risk of certain health issues. Focus on sustainable lifestyle changes."
+                        }
+                        bmiCategory = cat
+                        categoryDescription = desc
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                shape = RoundedCornerShape(16.dp),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+            ) {
+                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    "CALCULATE BMI METRICS",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Black)
+                )
+            }
+
+            if (bmiResult != null) {
+                Spacer(modifier = Modifier.height(24.dp))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                            RoundedCornerShape(24.dp)
+                        )
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "YOUR BMI RESULT",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            letterSpacing = 1.5.sp
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = String.format("%.1f", bmiResult),
+                        style = MaterialTheme.typography.displayMedium.copy(
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                    Text(
+                        text = bmiCategory.uppercase(),
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = categoryDescription,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 20.sp
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
 // ==================== FASTING TAB/PANE ====================
 
 data class BiologicalStage(
@@ -1009,7 +1252,8 @@ fun FastingPane(
     onEndClick: () -> Unit,
     onCancelFasting: () -> Unit,
     onDeleteLog: (FastingLog) -> Unit,
-    onTargetSelected: (Int) -> Unit
+    onTargetSelected: (Int) -> Unit,
+    onCustomFastLog: (Long, Long, String) -> Unit
 ) {
     var selectedStageForInfo by remember { mutableStateOf<BiologicalStage?>(null) }
     var showBackdateDialog by remember { mutableStateOf(false) }
@@ -1335,7 +1579,7 @@ fun FastingPane(
                         // Control Buttons Row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             OutlinedButton(
                                 onClick = onCancelFasting,
@@ -1347,17 +1591,60 @@ fun FastingPane(
                                     contentColor = MaterialTheme.colorScheme.error
                                 ),
                                 border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
-                                shape = RoundedCornerShape(16.dp)
+                                shape = RoundedCornerShape(16.dp),
+                                contentPadding = PaddingValues(horizontal = 4.dp)
                             ) {
-                                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Cancel", fontWeight = FontWeight.Bold)
+                                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Cancel", 
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Visible,
+                                    softWrap = false
+                                )
+                            }
+
+                            // Unified Custom Log button (When fast is active)
+                            var showCustomLogDialog by remember { mutableStateOf(false) }
+                            OutlinedButton(
+                                onClick = { showCustomLogDialog = true },
+                                modifier = Modifier
+                                    .weight(0.9f)
+                                    .height(54.dp)
+                                    .testTag("custom_log_active_fast_button"),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                ),
+                                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                                contentPadding = PaddingValues(horizontal = 4.dp)
+                            ) {
+                                Icon(Icons.Default.EditCalendar, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = "Log", 
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Visible,
+                                    softWrap = false
+                                )
+                            }
+
+                            if (showCustomLogDialog) {
+                                CustomEndFastDialog(
+                                    onDismiss = { showCustomLogDialog = false },
+                                    onConfirm = { startTime, endTime, notes ->
+                                        onCustomFastLog(startTime, endTime, notes)
+                                        showCustomLogDialog = false
+                                    }
+                                )
                             }
 
                             Button(
                                 onClick = onEndClick,
                                 modifier = Modifier
-                                    .weight(1.3f)
+                                    .weight(1.4f)
                                     .height(54.dp)
                                     .testTag("end_fast_button"),
                                 colors = ButtonDefaults.buttonColors(
@@ -1365,11 +1652,17 @@ fun FastingPane(
                                     contentColor = Color.White
                                 ),
                                 shape = RoundedCornerShape(16.dp),
-                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp)
                             ) {
                                 Icon(Icons.Default.Done, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Finish Fasting", fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "Finish Fasting", 
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 12.sp
+                                )
                             }
                         }
 
@@ -1517,29 +1810,45 @@ fun FastingPane(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Custom start button for backdating fast
+                        // Unified Custom Log button
+                        var showCustomLogDialog by remember { mutableStateOf(false) }
                         OutlinedButton(
-                            onClick = { showBackdateDialog = true },
+                            onClick = { showCustomLogDialog = true },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(50.dp)
-                                .testTag("backdate_fast_button"),
+                                .height(56.dp)
+                                .testTag("custom_log_fast_button"),
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
                                 contentColor = MaterialTheme.colorScheme.primary
                             ),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
                         ) {
-                            Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(Icons.Default.EditCalendar, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "BACKDATE FASTING START",
+                                text = "LOG CUSTOM FAST",
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+
+                        if (showCustomLogDialog) {
+                            CustomEndFastDialog(
+                                onDismiss = { showCustomLogDialog = false },
+                                onConfirm = { startTime, endTime, notes ->
+                                    onCustomFastLog(startTime, endTime, notes)
+                                    showCustomLogDialog = false
+                                }
                             )
                         }
                     }
                 }
             }
+        }
+
+        // BMI Calculator Section
+        item {
+            BmiCalculatorSection()
         }
 
         // Summary Statistics Header
@@ -1831,7 +2140,7 @@ fun FastingPane(
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Backdate Fasting Start", fontWeight = FontWeight.Bold)
+                    Text("Custom Start", fontWeight = FontWeight.Bold)
                 }
             },
             text = {
@@ -1954,6 +2263,171 @@ fun FastingPane(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun CustomEndFastDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (startTime: Long, endTime: Long, notes: String) -> Unit
+) {
+    var showStartDatePicker by remember { mutableStateOf(false) }
+    var showStartTimePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
+    var showEndTimePicker by remember { mutableStateOf(false) }
+
+    val startDatePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis() - 86400000L)
+    val startTimePickerState = rememberTimePickerState(initialHour = 20, initialMinute = 0)
+    
+    val endDatePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis())
+    val endTimePickerState = rememberTimePickerState(initialHour = 8, initialMinute = 0)
+
+    var notes by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { 
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.EditCalendar, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Log Custom Fast", fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    "Specify the exact start and end period for your fast.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                // Start
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("START TIME", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary, letterSpacing = 1.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { showStartDatePicker = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(startDatePickerState.selectedDateMillis ?: 0)))
+                        }
+                        OutlinedButton(
+                            onClick = { showStartTimePicker = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(String.format("%02d:%02d", startTimePickerState.hour, startTimePickerState.minute))
+                        }
+                    }
+                }
+
+                // End
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("END TIME", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary, letterSpacing = 1.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { showEndDatePicker = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.DateRange, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(endDatePickerState.selectedDateMillis ?: 0)))
+                        }
+                        OutlinedButton(
+                            onClick = { showEndTimePicker = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(String.format("%02d:%02d", endTimePickerState.hour, endTimePickerState.minute))
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    label = { Text("Notes (Optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                    )
+                )
+
+                if (error != null) {
+                    Text(error!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val cal = Calendar.getInstance()
+                    
+                    cal.timeInMillis = startDatePickerState.selectedDateMillis ?: 0
+                    cal.set(Calendar.HOUR_OF_DAY, startTimePickerState.hour)
+                    cal.set(Calendar.MINUTE, startTimePickerState.minute)
+                    val start = cal.timeInMillis
+
+                    cal.timeInMillis = endDatePickerState.selectedDateMillis ?: 0
+                    cal.set(Calendar.HOUR_OF_DAY, endTimePickerState.hour)
+                    cal.set(Calendar.MINUTE, endTimePickerState.minute)
+                    val end = cal.timeInMillis
+
+                    if (end <= start) {
+                        error = "End time must be after start time"
+                    } else if (end > System.currentTimeMillis()) {
+                        error = "End time cannot be in the future"
+                    } else {
+                        onConfirm(start, end, notes)
+                    }
+                },
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Save Fast Record")
+            }
+        },
+        dismissButton = { 
+            TextButton(onClick = onDismiss) { 
+                Text("Cancel") 
+            } 
+        }
+    )
+
+    if (showStartDatePicker) {
+        DatePickerDialog(onDismissRequest = { showStartDatePicker = false }, confirmButton = { TextButton(onClick = { showStartDatePicker = false }) { Text("OK") } }) {
+            DatePicker(state = startDatePickerState)
+        }
+    }
+    if (showEndDatePicker) {
+        DatePickerDialog(onDismissRequest = { showEndDatePicker = false }, confirmButton = { TextButton(onClick = { showEndDatePicker = false }) { Text("OK") } }) {
+            DatePicker(state = endDatePickerState)
+        }
+    }
+    if (showStartTimePicker || showEndTimePicker) {
+        val state = if (showStartTimePicker) startTimePickerState else endTimePickerState
+        Dialog(onDismissRequest = { showStartTimePicker = false; showEndTimePicker = false }) {
+            Surface(shape = MaterialTheme.shapes.extraLarge, tonalElevation = 6.dp) {
+                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    TimePicker(state = state)
+                    TextButton(onClick = { showStartTimePicker = false; showEndTimePicker = false }, modifier = Modifier.align(Alignment.End)) { Text("OK") }
                 }
             }
         }
@@ -3181,7 +3655,7 @@ fun SplashWelcomeScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White),
+            .background(Color(0xFF0061A4)), // Primary Blue background
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -3192,17 +3666,71 @@ fun SplashWelcomeScreen() {
                 scaleY = scaleAnim
             )
         ) {
+            // High-resolution clock logo from Play Store asset
             Image(
-                painter = painterResource(id = R.drawable.ic_app_logo),
+                painter = painterResource(id = R.drawable.ic_launcher_playstore),
                 contentDescription = "AXIS PHYSIQUE",
-                modifier = Modifier
-                    .size(280.dp)
-                    .padding(24.dp),
+                modifier = Modifier.size(200.dp), // Sharper size
                 contentScale = ContentScale.Fit
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Adjusted space to prevent overlap
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Animate text slide-up slightly
+            val textSlideAnim by animateFloatAsState(
+                targetValue = if (startAnimation) 0f else 10f,
+                animationSpec = tween(durationMillis = 800, delayMillis = 300, easing = FastOutSlowInEasing),
+                label = "TextSlide"
+            )
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.offset(y = textSlideAnim.dp) // Removed negative offset to fix mixing/overlap
+            ) {
+                Text(
+                    text = "AXIS PHYSIQUE",
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        fontSize = 26.sp,
+                        letterSpacing = 2.sp
+                    )
+                )
+                
+                Spacer(modifier = Modifier.height(2.dp))
+                
+                // Character-by-character reveal from left to right
+                val subtitle = "Intermittent Fasting"
+                Row {
+                    subtitle.forEachIndexed { index, char ->
+                        val charAlpha by animateFloatAsState(
+                            targetValue = if (startAnimation) 0.9f else 0f,
+                            animationSpec = tween(
+                                durationMillis = 600,
+                                delayMillis = 400 + (index * 40),
+                                easing = LinearOutSlowInEasing
+                            ),
+                            label = "CharAlpha$index"
+                        )
+                        
+                        Text(
+                            text = char.toString(),
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = charAlpha),
+                                fontSize = 16.sp,
+                                letterSpacing = if (char == ' ') 4.sp else 0.5.sp
+                            )
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(48.dp))
+
             CircularProgressIndicator(
-                color = Color(0xFF6366F1),
+                color = Color.White,
                 strokeWidth = 3.dp,
                 modifier = Modifier.size(28.dp)
             )
@@ -3669,10 +4197,10 @@ fun AnalyticsPane(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 val bars = when (selectedWaterStatsPeriod) {
-                    0 -> { // Weekly: show last 7 days (Keep as is)
-                        (0..6).reversed().map { i ->
+                    0 -> { // Weekly: show 7 days centered on today
+                        (-3..3).map { i ->
                             val cal = Calendar.getInstance()
-                            cal.add(Calendar.DAY_OF_YEAR, -i)
+                            cal.add(Calendar.DAY_OF_YEAR, i)
                             cal.set(Calendar.HOUR_OF_DAY, 0); cal.set(Calendar.MINUTE, 0); cal.set(Calendar.SECOND, 0); cal.set(Calendar.MILLISECOND, 0)
                             val dailyTotal = allDailyTotals[cal.timeInMillis] ?: 0
                             Triple(
@@ -3682,10 +4210,10 @@ fun AnalyticsPane(
                             )
                         }
                     }
-                    1 -> { // Monthly: show month names for 12 months centered on today
-                        val cal = Calendar.getInstance()
-                        cal.add(Calendar.MONTH, -5)
-                        (0..11).map {
+                    1 -> { // Monthly: show 12 months centered on today
+                        (-5..6).map { i ->
+                            val cal = Calendar.getInstance()
+                            cal.add(Calendar.MONTH, i)
                             val currentCal = Calendar.getInstance().apply { timeInMillis = cal.timeInMillis }
                             val startM = currentCal.apply { set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
                             val endM = currentCal.apply { set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH)); set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(Calendar.SECOND, 59) }.timeInMillis
@@ -3695,15 +4223,13 @@ fun AnalyticsPane(
                             val average = if (isLogged) monthDailyTotals.values.average().toFloat() else 0f
                             
                             val label = SimpleDateFormat("MMM", Locale.getDefault()).format(cal.time)
-                            val bar = Triple(label, average, isLogged)
-                            cal.add(Calendar.MONTH, 1)
-                            bar
+                            Triple(label, average, isLogged)
                         }
                     }
-                    else -> { // Yearly: show years (current, 2 previous, 2 upcoming)
-                        val cal = Calendar.getInstance()
-                        cal.add(Calendar.YEAR, -2)
-                        (0..4).map {
+                    else -> { // Yearly: show 5 years centered on today
+                        (-2..2).map { i ->
+                            val cal = Calendar.getInstance()
+                            cal.add(Calendar.YEAR, i)
                             val currentCal = Calendar.getInstance().apply { timeInMillis = cal.timeInMillis }
                             val startY = currentCal.apply { set(Calendar.MONTH, 0); set(Calendar.DAY_OF_MONTH, 1); set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
                             val endY = currentCal.apply { set(Calendar.MONTH, 11); set(Calendar.DAY_OF_MONTH, 31); set(Calendar.HOUR_OF_DAY, 23); set(Calendar.MINUTE, 59); set(Calendar.SECOND, 59) }.timeInMillis
@@ -3713,9 +4239,7 @@ fun AnalyticsPane(
                             val average = if (isLogged) yearDailyTotals.values.average().toFloat() else 0f
                             
                             val label = cal.get(Calendar.YEAR).toString()
-                            val bar = Triple(label, average, isLogged)
-                            cal.add(Calendar.YEAR, 1)
-                            bar
+                            Triple(label, average, isLogged)
                         }
                     }
                 }

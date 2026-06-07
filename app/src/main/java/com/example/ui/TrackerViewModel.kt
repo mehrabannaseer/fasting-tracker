@@ -129,11 +129,11 @@ class TrackerViewModel(private val repository: TrackerRepository) : ViewModel() 
         }
     }
 
-    fun endFasting(notes: String = "") {
+    fun endFasting(notes: String = "", customEndTime: Long? = null) {
         viewModelScope.launch {
             activeFastingLog.value?.let { activeLog ->
                 val updatedLog = activeLog.copy(
-                    endTime = System.currentTimeMillis(),
+                    endTime = customEndTime ?: System.currentTimeMillis(),
                     notes = notes
                 )
                 repository.updateFastingLog(updatedLog)
